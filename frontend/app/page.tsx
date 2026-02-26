@@ -67,17 +67,47 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"active" | "draft" | "all">(
     "active",
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // Context estimates take priority — exclude dummy entries with the same number
   const contextNumbers = new Set(estimates.map((e) => e.number));
   const dedupedDummy = DUMMY_DATA.filter((d) => !contextNumbers.has(d.number));
   const allData = [...estimates, ...dedupedDummy];
 
+  // Unique customer names for the dropdown
+  const uniqueCustomers = Array.from(
+    new Set(allData.map((d) => d.customer)),
+  ).sort();
+
   const filteredData = allData.filter((item) => {
-    if (activeTab === "all") return true;
-    return item.type === activeTab;
+    if (activeTab !== "all" && item.type !== activeTab) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (
+        !item.number.toLowerCase().includes(q) &&
+        !item.customer.toLowerCase().includes(q)
+      )
+        return false;
+    }
+    if (customerFilter && item.customer !== customerFilter) return false;
+    if (statusFilter && item.status !== statusFilter) return false;
+    if (dateFrom && item.date < dateFrom) return false;
+    if (dateTo && item.date > dateTo) return false;
+    return true;
   });
 
+  const activeFilterCount = [
+    customerFilter,
+    statusFilter,
+    dateFrom,
+    dateTo,
+    searchQuery,
+  ].filter(Boolean).length;
   const activeCount = allData.filter((item) => item.type === "active").length;
   const draftCount = allData.filter((item) => item.type === "draft").length;
 
@@ -98,23 +128,60 @@ export default function Home() {
         {/* Filters Area */}
         <div className="mb-6 space-y-4">
           <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#ebf3ff] text-xs font-bold text-blue-700">
-              0
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                activeFilterCount > 0
+                  ? "bg-blue-600 text-white"
+                  : "bg-[#ebf3ff] text-blue-700"
+              }`}
+            >
+              {activeFilterCount}
             </span>
             <span>Active filters</span>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setCustomerFilter("");
+                  setStatusFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="ml-1 text-xs text-blue-600 hover:underline font-bold"
+              >
+                Clear all
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
-              <select className="appearance-none rounded border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[200px] text-gray-600">
-                <option>All customers</option>
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="appearance-none rounded border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[200px] text-gray-600"
+              >
+                <option value="">All customers</option>
+                {uniqueCustomers.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             </div>
 
             <div className="relative">
-              <select className="appearance-none rounded border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[160px] text-gray-600">
-                <option>All statuses</option>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="appearance-none rounded border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[160px] text-gray-600"
+              >
+                <option value="">All statuses</option>
+                <option value="Draft">Draft</option>
+                <option value="Approved">Approved</option>
+                <option value="Sent">Sent</option>
+                <option value="Saved">Saved</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             </div>
@@ -122,35 +189,31 @@ export default function Home() {
             <div className="flex items-center">
               <div className="relative">
                 <input
-                  type="text"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
                   placeholder="From"
-                  onFocus={(e) => (e.target.type = "date")}
-                  onBlur={(e) => {
-                    if (!e.target.value) e.target.type = "text";
-                  }}
-                  className="w-[130px] rounded-l border border-gray-300 bg-white py-2 pl-3 pr-8 text-sm placeholder:text-gray-400 text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 z-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  className="w-[140px] rounded-l border border-gray-300 bg-white py-2 pl-3 pr-3 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               </div>
               <div className="relative -ml-[1px]">
                 <input
-                  type="text"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
                   placeholder="To"
-                  onFocus={(e) => (e.target.type = "date")}
-                  onBlur={(e) => {
-                    if (!e.target.value) e.target.type = "text";
-                  }}
-                  className="w-[130px] rounded-r border border-gray-300 bg-white py-2 pl-3 pr-8 text-sm placeholder:text-gray-400 text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 z-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  className="w-[140px] rounded-r border border-gray-300 bg-white py-2 pl-3 pr-3 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div className="relative ml-auto">
               <input
                 type="text"
-                placeholder="Enter estimate #"
-                className="w-[200px] rounded border border-gray-300 bg-white py-2 pl-3 pb-2 pr-10 text-sm placeholder:text-gray-400 placeholder:italic focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Search by # or customer…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-[220px] rounded border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm placeholder:text-gray-400 placeholder:italic focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <div className="absolute right-0 top-0 bottom-0 flex items-center justify-center border-l border-gray-300 bg-gray-50 w-10 rounded-r">
                 <Search className="h-4 w-4 text-gray-500" />
@@ -280,11 +343,15 @@ export default function Home() {
                     </td>
                     <td className="px-4 py-5 text-gray-700">{item.amount}</td>
                     <td className="px-4 py-5 text-right">
-                      <div className="flex items-center justify-end opacity-100">
+                      <div
+                        className="relative flex items-center justify-end"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="flex divide-x divide-blue-200 rounded-full border border-blue-600 shadow-sm bg-white overflow-hidden">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              router.push(detailHref);
                             }}
                             className="px-4 py-1 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
                           >
@@ -293,6 +360,9 @@ export default function Home() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              setOpenMenuId(
+                                openMenuId === item.id ? null : item.id,
+                              );
                             }}
                             className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 transition-colors"
                           >
@@ -302,6 +372,57 @@ export default function Home() {
                             />
                           </button>
                         </div>
+
+                        {/* Dropdown Menu */}
+                        {openMenuId === item.id && (
+                          <>
+                            {/* Backdrop to close */}
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => setOpenMenuId(null)}
+                            />
+                            <div className="absolute right-0 top-full mt-1 z-20 w-40 rounded-xl border border-gray-200 bg-white shadow-xl py-1 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  router.push(detailHref);
+                                }}
+                                className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  router.push("/new");
+                                }}
+                                className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  // Duplicate: add copy to context with new id/number
+                                  // (requires addEstimate — skipped for now, navigates to confirm)
+                                  alert(`Duplicate estimate #${item.number}`);
+                                }}
+                                className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              >
+                                Duplicate
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  window.print();
+                                }}
+                                className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              >
+                                Print
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
