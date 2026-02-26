@@ -2,19 +2,24 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export type EstimateStatus = "Draft" | "Approved" | "Sent" | "Accepted";
+export type EstimateType = "draft" | "active";
+
 export interface Estimate {
   id: number;
   number: string;
   date: string;
   customer: string;
   amount: string;
-  status: "Draft";
-  type: "draft";
+  status: EstimateStatus;
+  type: EstimateType;
+  validUntil?: string;
 }
 
 interface EstimatesContextType {
   estimates: Estimate[];
   addEstimate: (estimate: Estimate) => void;
+  updateEstimate: (id: number, updates: Partial<Estimate>) => void;
 }
 
 const EstimatesContext = createContext<EstimatesContextType | null>(null);
@@ -26,8 +31,16 @@ export function EstimatesProvider({ children }: { children: ReactNode }) {
     setEstimates((prev) => [estimate, ...prev]);
   };
 
+  const updateEstimate = (id: number, updates: Partial<Estimate>) => {
+    setEstimates((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+    );
+  };
+
   return (
-    <EstimatesContext.Provider value={{ estimates, addEstimate }}>
+    <EstimatesContext.Provider
+      value={{ estimates, addEstimate, updateEstimate }}
+    >
       {children}
     </EstimatesContext.Provider>
   );

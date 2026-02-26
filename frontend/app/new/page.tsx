@@ -154,12 +154,31 @@ export default function NewEstimate() {
   const router = useRouter();
   const { addEstimate } = useEstimates();
 
+  const [errors, setErrors] = useState<{ customer?: string; items?: string }>(
+    {},
+  );
+
   const handleSave = () => {
+    const newErrors: { customer?: string; items?: string } = {};
+
+    if (!selectedCustomer) {
+      newErrors.customer = "Please select a customer before saving.";
+    }
+    if (selectedItems.length === 0) {
+      newErrors.items = "Please add at least one item to the estimate.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     const estimate = {
       id: Date.now(),
       number: String(Math.floor(40000 + Math.random() * 9999)),
       date: new Date().toISOString().split("T")[0],
-      customer: selectedCustomer?.name ?? "Unknown",
+      customer: selectedCustomer!.name,
       amount: `$${subtotal.toFixed(2)}`,
       status: "Draft" as const,
       type: "draft" as const,
@@ -236,8 +255,13 @@ export default function NewEstimate() {
                   </div>
                 ) : (
                   <div
-                    onClick={() => setShowCustomerDropdown(true)}
-                    className="group flex h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gray-200 bg-[#fbfcff] transition-all hover:border-blue-400 hover:bg-blue-50"
+                    onClick={() => {
+                      setShowCustomerDropdown(true);
+                      setErrors((e) => ({ ...e, customer: undefined }));
+                    }}
+                    className={`group flex h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed bg-[#fbfcff] transition-all hover:border-blue-400 hover:bg-blue-50 ${
+                      errors.customer ? "border-red-400" : "border-gray-200"
+                    }`}
                   >
                     <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100 group-hover:scale-110 transition-transform">
                       <UserPlus className="h-8 w-8 text-blue-500" />
@@ -249,6 +273,13 @@ export default function NewEstimate() {
                       Add customer
                     </span>
                   </div>
+                )}
+
+                {/* Customer validation error */}
+                {errors.customer && (
+                  <p className="mt-2 text-sm font-medium text-red-500 flex items-center gap-1">
+                    <span>⚠</span> {errors.customer}
+                  </p>
                 )}
 
                 {/* Customer Dropdown */}
@@ -384,20 +415,30 @@ export default function NewEstimate() {
             {/* Add Item Button / Dropdown - at the top */}
             <div className="relative px-12 py-6 border-b border-gray-100">
               {!showItemDropdown ? (
-                <button
-                  onClick={() => setShowItemDropdown(true)}
-                  className="flex items-center gap-2 group"
-                >
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-600 group-hover:bg-blue-600 transition-colors">
-                    <Plus
-                      className="h-3 w-3 text-blue-600 group-hover:text-white"
-                      strokeWidth={4}
-                    />
-                  </div>
-                  <span className="text-sm font-bold text-blue-600">
-                    Add item
-                  </span>
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => {
+                      setShowItemDropdown(true);
+                      setErrors((e) => ({ ...e, items: undefined }));
+                    }}
+                    className="flex items-center gap-2 group w-fit"
+                  >
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-600 group-hover:bg-blue-600 transition-colors">
+                      <Plus
+                        className="h-3 w-3 text-blue-600 group-hover:text-white"
+                        strokeWidth={4}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-blue-600">
+                      Add item
+                    </span>
+                  </button>
+                  {errors.items && (
+                    <p className="text-sm font-medium text-red-500 flex items-center gap-1">
+                      <span>⚠</span> {errors.items}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <div className="absolute left-10 top-4 z-10 w-[600px] overflow-hidden rounded-xl border border-blue-400 bg-white shadow-xl ring-4 ring-blue-50">
                   {/* Search Bar */}

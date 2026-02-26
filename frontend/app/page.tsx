@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEstimates } from "./context/EstimatesContext";
 import {
   Calendar,
@@ -62,11 +63,15 @@ const DUMMY_DATA = [
 
 export default function Home() {
   const { estimates } = useEstimates();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"active" | "draft" | "all">(
     "active",
   );
 
-  const allData = [...estimates, ...DUMMY_DATA];
+  // Context estimates take priority — exclude dummy entries with the same number
+  const contextNumbers = new Set(estimates.map((e) => e.number));
+  const dedupedDummy = DUMMY_DATA.filter((d) => !contextNumbers.has(d.number));
+  const allData = [...estimates, ...dedupedDummy];
 
   const filteredData = allData.filter((item) => {
     if (activeTab === "all") return true;
@@ -239,42 +244,69 @@ export default function Home() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredData.map((item) => (
-                <tr
-                  key={item.id}
-                  className="hover:bg-gray-50 transition-colors group"
-                >
-                  <td className="px-4 py-5">
-                    <span
-                      className={`inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
-                        item.status === "Draft"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-[#e2e8f0] text-gray-700"
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-5 text-gray-700">{item.date}</td>
-                  <td className="px-4 py-5 text-gray-700">{item.number}</td>
-                  <td className="px-4 py-5 text-gray-700 font-medium">
-                    {item.customer}
-                  </td>
-                  <td className="px-4 py-5 text-gray-700">{item.amount}</td>
-                  <td className="px-4 py-5 text-right">
-                    <div className="flex items-center justify-end opacity-100">
-                      <div className="flex divide-x divide-blue-200 rounded-full border border-blue-600 shadow-sm bg-white overflow-hidden">
-                        <button className="px-4 py-1 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors">
-                          Send
-                        </button>
-                        <button className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 transition-colors">
-                          <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
+              {filteredData.map((item) => {
+                // context estimates use numeric id, dummy use number string
+                const isContextItem = estimates.some((e) => e.id === item.id);
+                const detailHref = isContextItem
+                  ? `/estimates/${item.id}`
+                  : `/estimates/${item.number}`;
+                return (
+                  <tr
+                    key={item.id}
+                    onClick={() => router.push(detailHref)}
+                    className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-4 py-5">
+                      <span
+                        className={`inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
+                          item.status === "Draft"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : item.status === "Approved"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-[#e2e8f0] text-gray-700"
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-5 text-gray-700">{item.date}</td>
+                    <td className="px-4 py-5">
+                      <span className="font-bold text-blue-600 hover:underline">
+                        {item.number}
+                      </span>
+                    </td>
+                    <td className="px-4 py-5 text-gray-700 font-medium">
+                      {item.customer}
+                    </td>
+                    <td className="px-4 py-5 text-gray-700">{item.amount}</td>
+                    <td className="px-4 py-5 text-right">
+                      <div className="flex items-center justify-end opacity-100">
+                        <div className="flex divide-x divide-blue-200 rounded-full border border-blue-600 shadow-sm bg-white overflow-hidden">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="px-4 py-1 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            Send
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <ChevronDown
+                              className="h-4 w-4"
+                              strokeWidth={2.5}
+                            />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredData.length === 0 && (
                 <tr>
                   <td

@@ -1,0 +1,374 @@
+"use client";
+
+import { useParams, useRouter } from "next/navigation";
+import { useEstimates, EstimateStatus } from "../../context/EstimatesContext";
+import { useState } from "react";
+import {
+  ChevronDown,
+  CheckCircle2,
+  Send,
+  ThumbsUp,
+  FileText,
+  Info,
+} from "lucide-react";
+
+const DUMMY_DETAILS: Record<
+  string,
+  {
+    customer: string;
+    amount: string;
+    validUntil: string;
+    date: string;
+    initialStatus: EstimateStatus;
+  }
+> = {
+  "45303": {
+    customer: "Yomal Thushara",
+    amount: "$450.00",
+    validUntil: "Mar 28, 2026",
+    date: "2026-02-26",
+    initialStatus: "Approved",
+  },
+  "45304": {
+    customer: "Amal Perera",
+    amount: "$1,200.00",
+    validUntil: "Mar 27, 2026",
+    date: "2026-02-25",
+    initialStatus: "Draft",
+  },
+  "45305": {
+    customer: "Nimal Silva",
+    amount: "$850.00",
+    validUntil: "Mar 26, 2026",
+    date: "2026-02-24",
+    initialStatus: "Draft",
+  },
+  "45306": {
+    customer: "Sunil Kasun",
+    amount: "$2,100.00",
+    validUntil: "Mar 25, 2026",
+    date: "2026-02-23",
+    initialStatus: "Draft",
+  },
+  "45307": {
+    customer: "Kamal Pathirana",
+    amount: "$320.00",
+    validUntil: "Mar 24, 2026",
+    date: "2026-02-22",
+    initialStatus: "Approved",
+  },
+};
+
+function timeAgo(dateStr: string) {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins > 1 ? "s" : ""} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs > 1 ? "s" : ""} ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+export default function EstimateDetail() {
+  const params = useParams();
+  const router = useRouter();
+  const { estimates, updateEstimate, addEstimate } = useEstimates();
+
+  const id = params.id as string;
+
+  // Try context first, then dummy
+  const contextEstimate = estimates.find(
+    (e) => String(e.id) === id || e.number === id,
+  );
+  const dummy = DUMMY_DETAILS[id];
+
+  // Local status state — drives all UI, syncs to context when applicable
+  const [localStatus, setLocalStatus] = useState<EstimateStatus>(
+    contextEstimate?.status ?? dummy?.initialStatus ?? "Draft",
+  );
+
+  if (!contextEstimate && !dummy) {
+    return (
+      <main className="flex-1 overflow-auto bg-[#f8f9fa] p-8 flex items-center justify-center">
+        <p className="text-gray-500 text-lg">Estimate not found.</p>
+      </main>
+    );
+  }
+
+  const estimate = contextEstimate
+    ? {
+        number: contextEstimate.number,
+        customer: contextEstimate.customer,
+        amount: contextEstimate.amount,
+        validUntil: contextEstimate.validUntil ?? "Mar 28, 2026",
+        date: contextEstimate.date,
+        id: contextEstimate.id,
+      }
+    : {
+        number: id,
+        customer: dummy!.customer,
+        amount: dummy!.amount,
+        validUntil: dummy!.validUntil,
+        date: dummy!.date,
+        id: null,
+      };
+
+  const isDraft = localStatus === "Draft";
+  const isApproved = localStatus === "Approved";
+  const isSent = localStatus === "Sent";
+
+  const setStatus = (status: EstimateStatus) => {
+    setLocalStatus(status);
+    if (contextEstimate) {
+      // Update existing context estimate
+      updateEstimate(contextEstimate.id, {
+        status,
+        type: status === "Draft" ? "draft" : "active",
+      });
+    } else if (dummy) {
+      // Dummy estimate — promote it into context so the dashboard reflects the change
+      // Remove any prior promoted version first by checking number
+      addEstimate({
+        id: Date.now(),
+        number: id,
+        date: dummy.date,
+        customer: dummy.customer,
+        amount: dummy.amount,
+        validUntil: dummy.validUntil,
+        status,
+        type: status === "Draft" ? "draft" : "active",
+      });
+    }
+  };
+
+  return (
+    <main className="flex-1 overflow-auto bg-[#f8f9fa] p-8 px-10">
+      <div className="mx-auto max-w-[900px]">
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <button
+              onClick={() => router.push("/")}
+              className="mb-2 text-sm text-blue-600 hover:underline font-medium"
+            >
+              ← Back to Estimates
+            </button>
+            <h1 className="text-[28px] font-bold text-[#0f1f4b]">
+              Estimate #{estimate.number}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex divide-x divide-gray-200 rounded-full border border-gray-300 bg-white overflow-hidden shadow-sm">
+              <button className="px-5 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                More actions
+              </button>
+              <button className="px-3 py-2 text-gray-500 hover:bg-gray-50 transition-colors">
+                <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            </div>
+            <button
+              onClick={() => router.push("/new")}
+              className="rounded-full border border-blue-600 bg-white px-5 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
+            >
+              Create another estimate
+            </button>
+          </div>
+        </div>
+
+        {/* Info Bar */}
+        <div className="mb-4 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Status</p>
+              <span
+                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
+                  isDraft
+                    ? "bg-yellow-100 text-yellow-800"
+                    : isApproved
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-green-100 text-green-700"
+                }`}
+              >
+                {localStatus}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Customer</p>
+              <p className="text-sm font-bold text-blue-600">
+                {estimate.customer}{" "}
+                <Info className="inline h-3.5 w-3.5 text-gray-400 mb-0.5" />
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-8">
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-0.5">Estimate total</p>
+              <p className="text-xl font-bold text-[#0f1f4b]">
+                {estimate.amount}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-0.5">Valid until</p>
+              <p className="text-sm font-bold text-[#0f1f4b]">
+                {estimate.validUntil}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Banners */}
+        {isDraft && (
+          <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 px-5 py-3 flex items-center gap-2 text-sm text-yellow-800">
+            <span className="text-yellow-500">⚠</span>
+            <span>
+              <strong>This is a DRAFT estimate.</strong> You can take further
+              actions once you approve it.{" "}
+              <button className="text-blue-600 font-bold hover:underline inline-flex items-center gap-0.5">
+                Learn more <span className="text-xs">↗</span>
+              </button>
+            </span>
+          </div>
+        )}
+        {isApproved && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 flex items-center gap-2 text-sm text-blue-800">
+            <CheckCircle2 className="h-4 w-4 text-blue-500" />
+            <span>
+              <strong>Draft approved.</strong> You can now send this estimate to
+              your customer.
+            </span>
+          </div>
+        )}
+        {isSent && (
+          <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-5 py-3 flex items-center gap-2 text-sm text-green-800">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <span>
+              <strong>Estimate sent.</strong> Waiting for the customer to
+              accept.
+            </span>
+          </div>
+        )}
+
+        {/* Timeline */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          {/* Step 1 — Create */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div className="flex items-center gap-4">
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${
+                  isDraft
+                    ? "border-blue-600 bg-blue-50"
+                    : "border-green-500 bg-green-50"
+                }`}
+              >
+                {isDraft ? (
+                  <FileText className="h-5 w-5 text-blue-600" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                )}
+              </div>
+              <div>
+                <p className="text-[15px] font-bold text-[#0f1f4b]">Create</p>
+                <p className="text-sm text-gray-500">
+                  Created:{" "}
+                  <span className="text-blue-600">
+                    {timeAgo(estimate.date)}
+                  </span>
+                </p>
+              </div>
+            </div>
+            {isDraft && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setStatus("Approved")}
+                  className="rounded-full bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition-colors"
+                >
+                  Approve draft
+                </button>
+                <button
+                  onClick={() => router.push("/new")}
+                  className="rounded-full border border-blue-600 bg-white px-5 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  Edit draft
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="ml-11 w-0.5 h-4 bg-gray-200" />
+
+          {/* Step 2 — Send */}
+          <div
+            className={`flex items-center justify-between px-6 py-5 border-b border-gray-100 transition-opacity ${
+              isDraft ? "opacity-40" : ""
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${
+                  isSent
+                    ? "border-green-500 bg-green-50"
+                    : isApproved
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-300 bg-gray-50"
+                }`}
+              >
+                {isSent ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                ) : (
+                  <Send
+                    className={`h-5 w-5 ${isApproved ? "text-blue-600" : "text-gray-400"}`}
+                  />
+                )}
+              </div>
+              <div>
+                <p className="text-[15px] font-bold text-[#0f1f4b]">Send</p>
+                <p className="text-sm text-gray-500">
+                  Last sent: {isSent ? "just now" : "Never"}
+                </p>
+              </div>
+            </div>
+            {isApproved && (
+              <div className="flex items-center gap-3">
+                {/* outlined */}
+                <button
+                  onClick={() => setStatus("Sent")}
+                  className="rounded-full border border-blue-600 bg-white px-5 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  Mark as sent
+                </button>
+                {/* solid blue */}
+                <button
+                  onClick={() => setStatus("Sent")}
+                  className="rounded-full bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition-colors"
+                >
+                  Send
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="ml-11 w-0.5 h-4 bg-gray-200" />
+
+          {/* Step 3 — Accept */}
+          <div
+            className={`flex items-center justify-between px-6 py-5 border-b border-gray-100 transition-opacity ${
+              !isSent ? "opacity-40" : ""
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-gray-300 bg-gray-50">
+                <ThumbsUp className="h-5 w-5 text-gray-400" />
+              </div>
+              <div>
+                <p className="text-[15px] font-bold text-[#0f1f4b]">Accept</p>
+                <p className="text-sm text-gray-500">
+                  Waiting for customer response
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
