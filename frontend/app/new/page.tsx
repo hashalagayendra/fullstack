@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEstimates } from "../context/EstimatesContext";
 
 const INITIAL_ITEMS = [
   { id: 1, name: "HP Laptop", description: "RTX 2050", price: 450.0 },
@@ -149,6 +151,23 @@ export default function NewEstimate() {
     0,
   );
 
+  const router = useRouter();
+  const { addEstimate } = useEstimates();
+
+  const handleSave = () => {
+    const estimate = {
+      id: Date.now(),
+      number: String(Math.floor(40000 + Math.random() * 9999)),
+      date: new Date().toISOString().split("T")[0],
+      customer: selectedCustomer?.name ?? "Unknown",
+      amount: `$${subtotal.toFixed(2)}`,
+      status: "Draft" as const,
+      type: "draft" as const,
+    };
+    addEstimate(estimate);
+    router.push("/");
+  };
+
   return (
     <main className="flex-1 overflow-auto bg-[#f8f9fa] p-8 px-10">
       <div className="mx-auto max-w-[1000px]">
@@ -160,7 +179,10 @@ export default function NewEstimate() {
               Preview
             </button>
             <div className="flex divide-x divide-blue-500 rounded-full bg-blue-600 shadow-md overflow-hidden">
-              <button className="px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+              <button
+                onClick={handleSave}
+                className="px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+              >
                 Save and continue
               </button>
               <button className="px-3 py-2.5 text-white hover:bg-blue-700 transition-colors">
@@ -567,7 +589,10 @@ export default function NewEstimate() {
           Preview
         </button>
         <div className="flex divide-x divide-blue-500 rounded-full bg-blue-600 shadow-md overflow-hidden">
-          <button className="px-8 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+          <button
+            onClick={handleSave}
+            className="px-8 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+          >
             Save and continue
           </button>
           <button className="px-3 py-2.5 text-white hover:bg-blue-700 transition-colors">

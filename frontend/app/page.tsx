@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useEstimates } from "./context/EstimatesContext";
 import {
   Calendar,
   ChevronDown,
@@ -60,19 +61,20 @@ const DUMMY_DATA = [
 ];
 
 export default function Home() {
+  const { estimates } = useEstimates();
   const [activeTab, setActiveTab] = useState<"active" | "draft" | "all">(
     "active",
   );
 
-  const filteredData = DUMMY_DATA.filter((item) => {
+  const allData = [...estimates, ...DUMMY_DATA];
+
+  const filteredData = allData.filter((item) => {
     if (activeTab === "all") return true;
     return item.type === activeTab;
   });
 
-  const activeCount = DUMMY_DATA.filter(
-    (item) => item.type === "active",
-  ).length;
-  const draftCount = DUMMY_DATA.filter((item) => item.type === "draft").length;
+  const activeCount = allData.filter((item) => item.type === "active").length;
+  const draftCount = allData.filter((item) => item.type === "draft").length;
 
   return (
     <main className="flex-1 overflow-auto bg-white p-8 px-10">
