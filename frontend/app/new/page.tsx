@@ -13,17 +13,16 @@ import {
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEstimates } from "../context/EstimatesContext";
 import {
-  useEstimates,
-  EstimateStatus,
-  EstimateType,
-} from "../context/EstimatesContext";
-import { DUMMY_DATA } from "../page";
-
-const INITIAL_ITEMS = [
-  { id: 1, name: "HP Laptop", description: "RTX 2050", price: 450.0 },
-  { id: 2, name: "Pen", description: "Blue Pen", price: 10.0 },
-];
+  fetchCustomers,
+  createCustomer as apiCreateCustomer,
+  fetchItems,
+  createItem as apiCreateItem,
+  fetchEstimate,
+  type CustomerData,
+  type ItemData,
+} from "../utils/api";
 
 interface SelectedItem {
   id: number;
@@ -35,7 +34,9 @@ interface SelectedItem {
 }
 
 function NewEstimateForm() {
-  const [items, setItems] = useState(INITIAL_ITEMS);
+  const [items, setItems] = useState<
+    { id: number; name: string; description: string; price: number }[]
+  >([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [showItemDropdown, setShowItemDropdown] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -57,34 +58,62 @@ function NewEstimateForm() {
     lastName: "",
   });
 
-  const [customers, setCustomers] = useState([
-    { id: 1, name: "Person", email: "", phone: "" },
-    {
-      id: 2,
-      name: "Shenali Hirushika",
-      email: "shenu123@gmail.com",
-      phone: "0722640409",
-    },
-    { id: 3, name: "Yomal Thushara", email: "", phone: "" },
-  ]);
+  const [customers, setCustomers] = useState<
+    { id: number; name: string; email: string; phone: string }[]
+  >([]);
+
+  // Fetch customers & items from API on mount
+  useEffect(() => {
+    fetchCustomers().then((data) =>
+      setCustomers(
+        data.map((c) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+        })),
+      ),
+    );
+    fetchItems().then((data) =>
+      setItems(
+        data.map((i) => ({
+          id: i.id,
+          name: i.name,
+          description: i.description,
+          price: i.price,
+        })),
+      ),
+    );
+  }, []);
 
   const filteredCustomers = customers.filter((c) =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase()),
   );
 
-  const handleCreateCustomer = () => {
+  const handleCreateCustomer = async () => {
     if (!newCustomer.name) return;
     const fullName = newCustomer.firstName
       ? `${newCustomer.firstName} ${newCustomer.lastName}`.trim()
       : newCustomer.name;
-    const created = {
-      id: Date.now(),
-      name: fullName,
-      email: newCustomer.email,
-      phone: newCustomer.phone,
-    };
-    setCustomers([created, ...customers]);
-    setSelectedCustomer(created);
+    try {
+      const created = await apiCreateCustomer({
+        name: fullName,
+        email: newCustomer.email,
+        phone: newCustomer.phone,
+        first_name: newCustomer.firstName,
+        last_name: newCustomer.lastName,
+      });
+      const cust = {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        phone: created.phone,
+      };
+      setCustomers([cust, ...customers]);
+      setSelectedCustomer(cust);
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+    }
     setShowCreateCustomerModal(false);
     setNewCustomer({
       name: "",
@@ -136,19 +165,30 @@ function NewEstimateForm() {
     setSelectedItems(selectedItems.filter((item) => item.id !== id));
   };
 
-  const handleCreateItem = () => {
+  const handleCreateItem = async () => {
     if (!newItem.name) return;
 
-    const itemToAdd = {
-      id: Date.now(),
-      name: newItem.name,
-      description: newItem.description,
-      price: parseFloat(newItem.price) || 0,
-    };
+    try {
+      const created = await apiCreateItem({
+        name: newItem.name,
+        description: newItem.description,
+        price: parseFloat(newItem.price) || 0,
+      });
+      setItems([
+        {
+          id: created.id,
+          name: created.name,
+          description: created.description,
+          price: created.price,
+        },
+        ...items,
+      ]);
+    } catch (err) {
+      console.error("Failed to create item:", err);
+    }
 
-    setItems([itemToAdd, ...items]);
     setShowCreateModal(false);
-    setNewItem({ name: "", description: "", price: "" }); // Reset form
+    setNewItem({ name: "", description: "", price: "" });
   };
 
   const subtotal = selectedItems.reduce(
@@ -160,39 +200,74 @@ function NewEstimateForm() {
   const searchParams = useSearchParams();
   const { addEstimate, updateEstimate, estimates } = useEstimates();
 
-  // Edit mode: load existing estimate from context or dummy data
+  // Edit mode: load existing estimate from API
   const editId = searchParams.get("edit");
-  let existingEstimate = editId
-    ? estimates.find((e) => String(e.id) === editId || e.number === editId)
-    : null;
+  const [existingEstimate, setExistingEstimate] = useState<
+    (typeof estimates)[0] | null
+  >(null);
+  const [editLoading, setEditLoading] = useState(!!editId);
 
-  if (!existingEstimate && editId) {
-    const dummy = DUMMY_DATA.find((d) => d.number === editId);
-    if (dummy) {
-      existingEstimate = {
-        id: Date.now(), // Create a new ID since we'll insert to context on save
-        number: dummy.number,
-        date: dummy.date,
-        customer: dummy.customer,
-        amount: dummy.amount,
-        status: dummy.status as EstimateStatus,
-        type: dummy.type as EstimateType,
-      };
+  useEffect(() => {
+    if (!editId) return;
+
+    // First check if already in context
+    const found = estimates.find(
+      (e) => String(e.id) === editId || e.number === editId,
+    );
+    if (found) {
+      setExistingEstimate(found);
+      setEditLoading(false);
+      return;
     }
-  }
+
+    // Otherwise fetch from API
+    fetchEstimate(editId)
+      .then((data) => {
+        const est = {
+          id: data.id,
+          number: data.number,
+          date: data.date,
+          customer: data.customer,
+          amount: data.amount,
+          status: data.status,
+          type: data.type,
+          validUntil: data.valid_until,
+          customer_id: data.customer_id ?? undefined,
+          customerObj: data.customer_obj
+            ? {
+                id: data.customer_obj.id,
+                name: data.customer_obj.name,
+                email: data.customer_obj.email,
+                phone: data.customer_obj.phone,
+              }
+            : undefined,
+          items: data.items?.map((li) => ({
+            id: li.id,
+            name: li.name,
+            description: li.description,
+            price: li.price,
+            quantity: li.quantity,
+          })),
+        };
+        setExistingEstimate(est);
+      })
+      .catch(() => {})
+      .finally(() => setEditLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   // Pre-populate form when editing
   useEffect(() => {
-    if (existingEstimate?.customerObj) {
+    if (!existingEstimate) return;
+
+    if (existingEstimate.customerObj) {
       setSelectedCustomer(existingEstimate.customerObj);
-    } else if (existingEstimate?.customer) {
-      const match = customers.find(
-        (c) => c.name === existingEstimate!.customer,
-      );
+    } else if (existingEstimate.customer) {
+      const match = customers.find((c) => c.name === existingEstimate.customer);
       if (match) setSelectedCustomer(match);
     }
 
-    if (existingEstimate?.items && existingEstimate.items.length > 0) {
+    if (existingEstimate.items && existingEstimate.items.length > 0) {
       setSelectedItems(
         existingEstimate.items.map((it) => ({
           id: it.id,
@@ -205,13 +280,13 @@ function NewEstimateForm() {
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editId]);
+  }, [existingEstimate]);
 
   const [errors, setErrors] = useState<{ customer?: string; items?: string }>(
     {},
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newErrors: { customer?: string; items?: string } = {};
 
     if (!selectedCustomer) {
@@ -228,48 +303,31 @@ function NewEstimateForm() {
 
     setErrors({});
 
-    const itemsToStore = selectedItems.map((it) => ({
-      id: it.id,
+    const itemsPayload = selectedItems.map((it) => ({
       name: it.name,
       description: it.description,
       price: it.price,
       quantity: it.quantity,
+      item_id: it.itemId || undefined,
     }));
 
-    const isExistingInContext =
-      existingEstimate && estimates.some((e) => e.id === existingEstimate.id);
-
-    if (existingEstimate && isExistingInContext) {
-      // Edit mode (already in context) — update in place
-      updateEstimate(existingEstimate.id, {
-        customer: selectedCustomer!.name,
-        amount: `$${subtotal.toFixed(2)}`,
-        customerObj: selectedCustomer!,
-        items: itemsToStore,
-        status: existingEstimate.status,
-      });
-    } else if (existingEstimate && !isExistingInContext) {
-      // Edit mode (from dummy) — promote to context
-      addEstimate({
-        ...existingEstimate,
-        customer: selectedCustomer!.name,
-        amount: `$${subtotal.toFixed(2)}`,
-        customerObj: selectedCustomer!,
-        items: itemsToStore,
-      });
-    } else {
-      // New estimate
-      addEstimate({
-        id: Date.now(),
-        number: String(Math.floor(40000 + Math.random() * 9999)),
-        date: new Date().toISOString().split("T")[0],
-        customer: selectedCustomer!.name,
-        amount: `$${subtotal.toFixed(2)}`,
-        status: "Draft" as const,
-        type: "draft" as const,
-        customerObj: selectedCustomer!,
-        items: itemsToStore,
-      });
+    try {
+      if (existingEstimate) {
+        await updateEstimate(existingEstimate.id, {
+          customer_id: selectedCustomer!.id,
+          items: itemsPayload,
+        });
+      } else {
+        await addEstimate({
+          date: new Date().toISOString().split("T")[0],
+          status: "Draft",
+          type: "draft",
+          customer_id: selectedCustomer!.id,
+          items: itemsPayload,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save estimate:", err);
     }
     router.push("/");
   };

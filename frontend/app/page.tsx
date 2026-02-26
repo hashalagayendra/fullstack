@@ -14,56 +14,8 @@ import {
   Search,
 } from "lucide-react";
 
-export const DUMMY_DATA = [
-  {
-    id: 1,
-    status: "Saved",
-    date: "2026-02-26",
-    number: "45303",
-    customer: "Yomal Thushara",
-    amount: "$450.00",
-    type: "active",
-  },
-  {
-    id: 2,
-    status: "Draft",
-    date: "2026-02-25",
-    number: "45304",
-    customer: "Amal Perera",
-    amount: "$1,200.00",
-    type: "draft",
-  },
-  {
-    id: 3,
-    status: "Draft",
-    date: "2026-02-24",
-    number: "45305",
-    customer: "Nimal Silva",
-    amount: "$850.00",
-    type: "draft",
-  },
-  {
-    id: 4,
-    status: "Draft",
-    date: "2026-02-23",
-    number: "45306",
-    customer: "Sunil Kasun",
-    amount: "$2,100.00",
-    type: "draft",
-  },
-  {
-    id: 5,
-    status: "Saved",
-    date: "2026-02-22",
-    number: "45307",
-    customer: "Kamal Pathirana",
-    amount: "$320.00",
-    type: "active",
-  },
-];
-
 export default function Home() {
-  const { estimates } = useEstimates();
+  const { estimates, loading } = useEstimates();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"active" | "draft" | "all">(
     "active",
@@ -75,10 +27,8 @@ export default function Home() {
   const [dateTo, setDateTo] = useState("");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Context estimates take priority — exclude dummy entries with the same number
-  const contextNumbers = new Set(estimates.map((e) => e.number));
-  const dedupedDummy = DUMMY_DATA.filter((d) => !contextNumbers.has(d.number));
-  const allData = [...estimates, ...dedupedDummy];
+  // All data now comes from the API via context
+  const allData = estimates;
 
   // Unique customer names for the dropdown
   const uniqueCustomers = Array.from(
@@ -111,6 +61,14 @@ export default function Home() {
   ].filter(Boolean).length;
   const activeCount = allData.filter((item) => item.type === "active").length;
   const draftCount = allData.filter((item) => item.type === "draft").length;
+
+  if (loading) {
+    return (
+      <main className="flex-1 overflow-auto bg-white p-8 px-10 flex items-center justify-center">
+        <p className="text-gray-400 text-lg">Loading estimates…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-auto bg-white p-8 px-10">
@@ -309,11 +267,7 @@ export default function Home() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredData.map((item) => {
-                // context estimates use numeric id, dummy use number string
-                const isContextItem = estimates.some((e) => e.id === item.id);
-                const detailHref = isContextItem
-                  ? `/estimates/${item.id}`
-                  : `/estimates/${item.number}`;
+                const detailHref = `/estimates/${item.id}`;
                 return (
                   <tr
                     key={item.id}
@@ -395,11 +349,7 @@ export default function Home() {
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
-                                  router.push(
-                                    `/new?edit=${
-                                      isContextItem ? item.id : item.number
-                                    }`,
-                                  );
+                                  router.push(`/new?edit=${item.id}`);
                                 }}
                                 className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               >

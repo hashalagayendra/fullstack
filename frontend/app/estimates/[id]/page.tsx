@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEstimates, EstimateStatus } from "../../context/EstimatesContext";
-import { useState } from "react";
+import { useEstimates } from "../../context/EstimatesContext";
+import { useState, useEffect } from "react";
+import { fetchEstimate, type EstimateData } from "../../utils/api";
 import {
   ChevronDown,
   CheckCircle2,
@@ -11,53 +12,6 @@ import {
   FileText,
   Info,
 } from "lucide-react";
-
-const DUMMY_DETAILS: Record<
-  string,
-  {
-    customer: string;
-    amount: string;
-    validUntil: string;
-    date: string;
-    initialStatus: EstimateStatus;
-  }
-> = {
-  "45303": {
-    customer: "Yomal Thushara",
-    amount: "$450.00",
-    validUntil: "Mar 28, 2026",
-    date: "2026-02-26",
-    initialStatus: "Approved",
-  },
-  "45304": {
-    customer: "Amal Perera",
-    amount: "$1,200.00",
-    validUntil: "Mar 27, 2026",
-    date: "2026-02-25",
-    initialStatus: "Draft",
-  },
-  "45305": {
-    customer: "Nimal Silva",
-    amount: "$850.00",
-    validUntil: "Mar 26, 2026",
-    date: "2026-02-24",
-    initialStatus: "Draft",
-  },
-  "45306": {
-    customer: "Sunil Kasun",
-    amount: "$2,100.00",
-    validUntil: "Mar 25, 2026",
-    date: "2026-02-23",
-    initialStatus: "Draft",
-  },
-  "45307": {
-    customer: "Kamal Pathirana",
-    amount: "$320.00",
-    validUntil: "Mar 24, 2026",
-    date: "2026-02-22",
-    initialStatus: "Approved",
-  },
-};
 
 function timeAgo(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime();
@@ -72,22 +26,90 @@ function timeAgo(dateStr: string) {
 export default function EstimateDetail() {
   const params = useParams();
   const router = useRouter();
-  const { estimates, updateEstimate, addEstimate } = useEstimates();
+  const { estimates, updateEstimateStatus, refreshEstimates } = useEstimates();
 
   const id = params.id as string;
 
-  // Try context first, then dummy
+  // Try context first
   const contextEstimate = estimates.find(
     (e) => String(e.id) === id || e.number === id,
   );
-  const dummy = DUMMY_DETAILS[id];
 
-  // Local status state — drives all UI, syncs to context when applicable
-  const [localStatus, setLocalStatus] = useState<EstimateStatus>(
-    contextEstimate?.status ?? dummy?.initialStatus ?? "Draft",
+  // If not in context, fetch from API
+  const [apiEstimate, setApiEstimate] = useState<EstimateData | null>(null);
+  const [loading, setLoading] = useState(!contextEstimate);
+
+  useEffect(() => {
+    if (contextEstimate) {
+      setLoading(false);
+      return;
+    }
+    fetchEstimate(id)
+      .then((data) => setApiEstimate(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id, contextEstimate]);
+
+  const estimateSource = contextEstimate
+    ? {
+        id: contextEstimate.id,
+        number: contextEstimate.number,
+        customer: contextEstimate.customer,
+        amount: contextEstimate.amount,
+        validUntil: contextEstimate.validUntil ?? "",
+        date: contextEstimate.date,
+        status: contextEstimate.status,
+        items: contextEstimate.items,
+        customerObj: contextEstimate.customerObj,
+      }
+    : apiEstimate
+      ? {
+          id: apiEstimate.id,
+          number: apiEstimate.number,
+          customer: apiEstimate.customer,
+          amount: apiEstimate.amount,
+          validUntil: apiEstimate.valid_until,
+          date: apiEstimate.date,
+          status: apiEstimate.status,
+          items: apiEstimate.items?.map((li) => ({
+            id: li.id,
+            name: li.name,
+            description: li.description,
+            price: li.price,
+            quantity: li.quantity,
+          })),
+          customerObj: apiEstimate.customer_obj
+            ? {
+                id: apiEstimate.customer_obj.id,
+                name: apiEstimate.customer_obj.name,
+                email: apiEstimate.customer_obj.email,
+                phone: apiEstimate.customer_obj.phone,
+              }
+            : undefined,
+        }
+      : null;
+
+  const [localStatus, setLocalStatus] = useState<string>(
+    estimateSource?.status ?? "Draft",
   );
 
-  if (!contextEstimate && !dummy) {
+  // Sync local status when estimate loads
+  useEffect(() => {
+    if (estimateSource?.status) {
+      setLocalStatus(estimateSource.status);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimateSource?.status]);
+
+  if (loading) {
+    return (
+      <main className="flex-1 overflow-auto bg-[#f8f9fa] p-8 flex items-center justify-center">
+        <p className="text-gray-400 text-lg">Loading…</p>
+      </main>
+    );
+  }
+
+  if (!estimateSource) {
     return (
       <main className="flex-1 overflow-auto bg-[#f8f9fa] p-8 flex items-center justify-center">
         <p className="text-gray-500 text-lg">Estimate not found.</p>
@@ -95,49 +117,18 @@ export default function EstimateDetail() {
     );
   }
 
-  const estimate = contextEstimate
-    ? {
-        number: contextEstimate.number,
-        customer: contextEstimate.customer,
-        amount: contextEstimate.amount,
-        validUntil: contextEstimate.validUntil ?? "Mar 28, 2026",
-        date: contextEstimate.date,
-        id: contextEstimate.id,
-      }
-    : {
-        number: id,
-        customer: dummy!.customer,
-        amount: dummy!.amount,
-        validUntil: dummy!.validUntil,
-        date: dummy!.date,
-        id: null,
-      };
-
+  const estimate = estimateSource;
   const isDraft = localStatus === "Draft";
   const isApproved = localStatus === "Approved";
   const isSent = localStatus === "Sent";
 
-  const setStatus = (status: EstimateStatus) => {
+  const setStatus = async (status: string) => {
     setLocalStatus(status);
-    if (contextEstimate) {
-      // Update existing context estimate
-      updateEstimate(contextEstimate.id, {
-        status,
-        type: status === "Draft" ? "draft" : "active",
-      });
-    } else if (dummy) {
-      // Dummy estimate — promote it into context so the dashboard reflects the change
-      // Remove any prior promoted version first by checking number
-      addEstimate({
-        id: Date.now(),
-        number: id,
-        date: dummy.date,
-        customer: dummy.customer,
-        amount: dummy.amount,
-        validUntil: dummy.validUntil,
-        status,
-        type: status === "Draft" ? "draft" : "active",
-      });
+    try {
+      await updateEstimateStatus(String(estimate.id), status);
+      await refreshEstimates();
+    } catch (err) {
+      console.error("Failed to update status:", err);
     }
   };
 
@@ -406,13 +397,16 @@ export default function EstimateDetail() {
                 {estimate.customer}
               </p>
               <p className="text-sm text-gray-600">{estimate.customer}</p>
-              {dummy?.initialStatus &&
-                DUMMY_DETAILS[id]?.customer === estimate.customer && (
-                  <>
-                    <p className="text-sm text-gray-600 pt-1">0722640409</p>
-                    <p className="text-sm text-blue-600">shenu123@gmail.com</p>
-                  </>
-                )}
+              {estimate.customerObj?.phone && (
+                <p className="text-sm text-gray-600 pt-1">
+                  {estimate.customerObj.phone}
+                </p>
+              )}
+              {estimate.customerObj?.email && (
+                <p className="text-sm text-blue-600">
+                  {estimate.customerObj.email}
+                </p>
+              )}
             </div>
 
             {/* Estimate Meta */}
@@ -472,20 +466,36 @@ export default function EstimateDetail() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {/* Dummy line item — in a real app these would come from the estimate's items */}
-                <tr>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-blue-600">HP Laptop</p>
-                    <p className="text-xs text-gray-500">RTX 2050</p>
-                  </td>
-                  <td className="px-4 py-4 text-center text-gray-700">1</td>
-                  <td className="px-4 py-4 text-right text-gray-700">
-                    $450.00
-                  </td>
-                  <td className="px-4 py-4 text-right font-medium text-gray-700">
-                    $450.00
-                  </td>
-                </tr>
+                {estimate.items && estimate.items.length > 0 ? (
+                  estimate.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-blue-600">{item.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.description}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4 text-center text-gray-700">
+                        {item.quantity}
+                      </td>
+                      <td className="px-4 py-4 text-right text-gray-700">
+                        ${item.price.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-4 text-right font-medium text-gray-700">
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-4 text-center text-gray-400 italic"
+                    >
+                      No items
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 
