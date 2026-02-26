@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEstimates } from "./context/EstimatesContext";
+import { downloadReceipt } from "./utils/downloadReceipt";
 import {
   Calendar,
   ChevronDown,
@@ -13,7 +14,7 @@ import {
   Search,
 } from "lucide-react";
 
-const DUMMY_DATA = [
+export const DUMMY_DATA = [
   {
     id: 1,
     status: "Saved",
@@ -394,7 +395,11 @@ export default function Home() {
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
-                                  router.push("/new");
+                                  router.push(
+                                    `/new?edit=${
+                                      isContextItem ? item.id : item.number
+                                    }`,
+                                  );
                                 }}
                                 className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               >
@@ -414,7 +419,16 @@ export default function Home() {
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
-                                  window.print();
+                                  downloadReceipt({
+                                    number: item.number,
+                                    date: item.date,
+                                    customer: item.customer,
+                                    amount: item.amount,
+                                    status: item.status,
+                                    validUntil: (
+                                      item as { validUntil?: string }
+                                    ).validUntil,
+                                  });
                                 }}
                                 className="flex w-full items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               >

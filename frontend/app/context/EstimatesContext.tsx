@@ -5,6 +5,21 @@ import { createContext, useContext, useState, ReactNode } from "react";
 export type EstimateStatus = "Draft" | "Approved" | "Sent" | "Accepted";
 export type EstimateType = "draft" | "active";
 
+export interface EstimateItem {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  quantity: number;
+}
+
+export interface EstimateCustomer {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+}
+
 export interface Estimate {
   id: number;
   number: string;
@@ -14,6 +29,9 @@ export interface Estimate {
   status: EstimateStatus;
   type: EstimateType;
   validUntil?: string;
+  // Full data for editing
+  customerObj?: EstimateCustomer;
+  items?: EstimateItem[];
 }
 
 interface EstimatesContextType {

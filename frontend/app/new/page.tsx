@@ -11,9 +11,14 @@ import {
   X,
 } from "lucide-react";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useEstimates } from "../context/EstimatesContext";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useEstimates,
+  EstimateStatus,
+  EstimateType,
+} from "../context/EstimatesContext";
+import { DUMMY_DATA } from "../page";
 
 const INITIAL_ITEMS = [
   { id: 1, name: "HP Laptop", description: "RTX 2050", price: 450.0 },
@@ -29,7 +34,7 @@ interface SelectedItem {
   price: number;
 }
 
-export default function NewEstimate() {
+function NewEstimateForm() {
   const [items, setItems] = useState(INITIAL_ITEMS);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [showItemDropdown, setShowItemDropdown] = useState(false);
@@ -152,7 +157,55 @@ export default function NewEstimate() {
   );
 
   const router = useRouter();
-  const { addEstimate } = useEstimates();
+  const searchParams = useSearchParams();
+  const { addEstimate, updateEstimate, estimates } = useEstimates();
+
+  // Edit mode: load existing estimate from context or dummy data
+  const editId = searchParams.get("edit");
+  let existingEstimate = editId
+    ? estimates.find((e) => String(e.id) === editId || e.number === editId)
+    : null;
+
+  if (!existingEstimate && editId) {
+    const dummy = DUMMY_DATA.find((d) => d.number === editId);
+    if (dummy) {
+      existingEstimate = {
+        id: Date.now(), // Create a new ID since we'll insert to context on save
+        number: dummy.number,
+        date: dummy.date,
+        customer: dummy.customer,
+        amount: dummy.amount,
+        status: dummy.status as EstimateStatus,
+        type: dummy.type as EstimateType,
+      };
+    }
+  }
+
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (existingEstimate?.customerObj) {
+      setSelectedCustomer(existingEstimate.customerObj);
+    } else if (existingEstimate?.customer) {
+      const match = customers.find(
+        (c) => c.name === existingEstimate!.customer,
+      );
+      if (match) setSelectedCustomer(match);
+    }
+
+    if (existingEstimate?.items && existingEstimate.items.length > 0) {
+      setSelectedItems(
+        existingEstimate.items.map((it) => ({
+          id: it.id,
+          itemId: it.id,
+          name: it.name,
+          description: it.description,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   const [errors, setErrors] = useState<{ customer?: string; items?: string }>(
     {},
@@ -174,16 +227,50 @@ export default function NewEstimate() {
     }
 
     setErrors({});
-    const estimate = {
-      id: Date.now(),
-      number: String(Math.floor(40000 + Math.random() * 9999)),
-      date: new Date().toISOString().split("T")[0],
-      customer: selectedCustomer!.name,
-      amount: `$${subtotal.toFixed(2)}`,
-      status: "Draft" as const,
-      type: "draft" as const,
-    };
-    addEstimate(estimate);
+
+    const itemsToStore = selectedItems.map((it) => ({
+      id: it.id,
+      name: it.name,
+      description: it.description,
+      price: it.price,
+      quantity: it.quantity,
+    }));
+
+    const isExistingInContext =
+      existingEstimate && estimates.some((e) => e.id === existingEstimate.id);
+
+    if (existingEstimate && isExistingInContext) {
+      // Edit mode (already in context) — update in place
+      updateEstimate(existingEstimate.id, {
+        customer: selectedCustomer!.name,
+        amount: `$${subtotal.toFixed(2)}`,
+        customerObj: selectedCustomer!,
+        items: itemsToStore,
+        status: existingEstimate.status,
+      });
+    } else if (existingEstimate && !isExistingInContext) {
+      // Edit mode (from dummy) — promote to context
+      addEstimate({
+        ...existingEstimate,
+        customer: selectedCustomer!.name,
+        amount: `$${subtotal.toFixed(2)}`,
+        customerObj: selectedCustomer!,
+        items: itemsToStore,
+      });
+    } else {
+      // New estimate
+      addEstimate({
+        id: Date.now(),
+        number: String(Math.floor(40000 + Math.random() * 9999)),
+        date: new Date().toISOString().split("T")[0],
+        customer: selectedCustomer!.name,
+        amount: `$${subtotal.toFixed(2)}`,
+        status: "Draft" as const,
+        type: "draft" as const,
+        customerObj: selectedCustomer!,
+        items: itemsToStore,
+      });
+    }
     router.push("/");
   };
 
@@ -192,7 +279,11 @@ export default function NewEstimate() {
       <div className="mx-auto max-w-[1000px]">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-[32px] font-bold text-[#0f1f4b]">New estimate</h1>
+          <h1 className="text-[32px] font-bold text-[#0f1f4b]">
+            {existingEstimate
+              ? `Edit estimate #${existingEstimate.number}`
+              : "New estimate"}
+          </h1>
           <div className="flex items-center gap-3">
             <button className="rounded-full border border-blue-600 bg-white px-6 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
               Preview
@@ -862,5 +953,19 @@ export default function NewEstimate() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function NewEstimatePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center text-gray-400">
+          Loading…
+        </div>
+      }
+    >
+      <NewEstimateForm />
+    </Suspense>
   );
 }

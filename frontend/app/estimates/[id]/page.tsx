@@ -285,7 +285,11 @@ export default function EstimateDetail() {
                   Approve draft
                 </button>
                 <button
-                  onClick={() => router.push("/new")}
+                  onClick={() =>
+                    router.push(
+                      estimate.id ? `/new?edit=${estimate.id}` : "/new",
+                    )
+                  }
                   className="rounded-full border border-blue-600 bg-white px-5 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
                 >
                   Edit draft
