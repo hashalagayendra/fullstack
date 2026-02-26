@@ -33,6 +33,60 @@ export default function NewEstimate() {
   const [showItemDropdown, setShowItemDropdown] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+  } | null>(null);
+  const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    firstName: "",
+    lastName: "",
+  });
+
+  const [customers, setCustomers] = useState([
+    { id: 1, name: "Person", email: "", phone: "" },
+    {
+      id: 2,
+      name: "Shenali Hirushika",
+      email: "shenu123@gmail.com",
+      phone: "0722640409",
+    },
+    { id: 3, name: "Yomal Thushara", email: "", phone: "" },
+  ]);
+
+  const filteredCustomers = customers.filter((c) =>
+    c.name.toLowerCase().includes(customerSearch.toLowerCase()),
+  );
+
+  const handleCreateCustomer = () => {
+    if (!newCustomer.name) return;
+    const fullName = newCustomer.firstName
+      ? `${newCustomer.firstName} ${newCustomer.lastName}`.trim()
+      : newCustomer.name;
+    const created = {
+      id: Date.now(),
+      name: fullName,
+      email: newCustomer.email,
+      phone: newCustomer.phone,
+    };
+    setCustomers([created, ...customers]);
+    setSelectedCustomer(created);
+    setShowCreateCustomerModal(false);
+    setNewCustomer({
+      name: "",
+      email: "",
+      phone: "",
+      firstName: "",
+      lastName: "",
+    });
+  };
 
   // Form state for new item
   const [newItem, setNewItem] = useState({
@@ -129,18 +183,117 @@ export default function NewEstimate() {
           <div className="p-12 pb-6">
             <div className="flex items-start justify-between gap-12">
               {/* Left side: Add customer */}
-              <div className="w-[380px]">
-                <div className="group flex h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gray-200 bg-[#fbfcff] transition-all hover:border-blue-400 hover:bg-blue-50">
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100 group-hover:scale-110 transition-transform">
-                    <UserPlus className="h-8 w-8 text-blue-500" />
-                    <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white ring-2 ring-white">
-                      <Plus className="h-4 w-4" strokeWidth={3} />
+              <div className="w-[380px] relative">
+                {selectedCustomer ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-1">
+                    <p className="text-xs text-gray-500">Bill to</p>
+                    <p className="text-sm font-bold text-[#0f1f4b]">
+                      {selectedCustomer.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedCustomer.name}
+                    </p>
+                    {selectedCustomer.phone && (
+                      <p className="text-sm text-gray-600 pt-1">
+                        {selectedCustomer.phone}
+                      </p>
+                    )}
+                    {selectedCustomer.email && (
+                      <p className="text-sm text-gray-600">
+                        {selectedCustomer.email}
+                      </p>
+                    )}
+                    <div className="flex flex-col gap-0.5 pt-1">
+                      <button
+                        onClick={() => setSelectedCustomer(null)}
+                        className="text-left text-sm font-bold text-blue-600 hover:underline"
+                      >
+                        Choose a different customer
+                      </button>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-blue-600">
-                    Add customer
-                  </span>
-                </div>
+                ) : (
+                  <div
+                    onClick={() => setShowCustomerDropdown(true)}
+                    className="group flex h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gray-200 bg-[#fbfcff] transition-all hover:border-blue-400 hover:bg-blue-50"
+                  >
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100 group-hover:scale-110 transition-transform">
+                      <UserPlus className="h-8 w-8 text-blue-500" />
+                      <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white ring-2 ring-white">
+                        <Plus className="h-4 w-4" strokeWidth={3} />
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-blue-600">
+                      Add customer
+                    </span>
+                  </div>
+                )}
+
+                {/* Customer Dropdown */}
+                {showCustomerDropdown && (
+                  <div className="absolute left-0 top-0 z-20 w-full overflow-hidden rounded-xl border border-blue-400 bg-white shadow-xl ring-4 ring-blue-50">
+                    {/* Search */}
+                    <div className="p-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Type a customer name"
+                          value={customerSearch}
+                          onChange={(e) => setCustomerSearch(e.target.value)}
+                          onBlur={() =>
+                            setTimeout(
+                              () => setShowCustomerDropdown(false),
+                              200,
+                            )
+                          }
+                          className="w-full rounded-lg border border-blue-500 bg-white py-2.5 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Customer List */}
+                    <div className="max-h-[240px] overflow-auto">
+                      {filteredCustomers.map((customer, idx) => (
+                        <div
+                          key={customer.id}
+                          className={`px-4 py-3 cursor-pointer text-sm font-bold text-[#0f1f4b] hover:bg-blue-50 transition-colors ${
+                            idx === 0 ? "bg-blue-50" : ""
+                          }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setSelectedCustomer(customer);
+                            setShowCustomerDropdown(false);
+                            setCustomerSearch("");
+                          }}
+                        >
+                          {customer.name}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-100 p-3">
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setShowCustomerDropdown(false);
+                          setShowCreateCustomerModal(true);
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-600">
+                          <Plus
+                            className="h-3 w-3 text-blue-600"
+                            strokeWidth={4}
+                          />
+                        </div>
+                        Create a new customer
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Right side: Form Fields */}
@@ -397,6 +550,32 @@ export default function NewEstimate() {
         </div>
       </div>
 
+      {/* Notes / Terms Section */}
+      <div className="mx-auto max-w-[1000px] mt-4">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+          <p className="text-sm font-bold text-gray-800 mb-2">Notes / Terms</p>
+          <textarea
+            placeholder="Enter notes or terms of service that are visible to your customer"
+            className="w-full min-h-[100px] text-sm text-blue-400 italic placeholder:text-blue-400 placeholder:italic bg-transparent focus:outline-none resize-none"
+          />
+        </div>
+      </div>
+
+      {/* Bottom Action Buttons */}
+      <div className="mx-auto max-w-[1000px] mt-6 mb-10 flex items-center justify-end gap-3">
+        <button className="rounded-full border border-blue-600 bg-white px-6 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
+          Preview
+        </button>
+        <div className="flex divide-x divide-blue-500 rounded-full bg-blue-600 shadow-md overflow-hidden">
+          <button className="px-8 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+            Save and continue
+          </button>
+          <button className="px-3 py-2.5 text-white hover:bg-blue-700 transition-colors">
+            <ChevronDown className="h-4 w-4" strokeWidth={3} />
+          </button>
+        </div>
+      </div>
+
       {/* Create Item Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
@@ -489,6 +668,125 @@ export default function NewEstimate() {
               <button
                 onClick={handleCreateItem}
                 disabled={!newItem.name}
+                className="rounded-full bg-blue-600 px-9 py-2 text-[14px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Customer Modal */}
+      {showCreateCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
+          <div className="w-full max-w-[520px] overflow-hidden rounded-xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <h2 className="text-[20px] font-bold text-[#0f1f4b]">
+                New customer
+              </h2>
+              <button
+                onClick={() => setShowCreateCustomerModal(false)}
+                className="rounded-full p-2 text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              {/* Customer name */}
+              <div className="space-y-1.5">
+                <label className="text-[14px] font-bold text-[#0f1f4b]">
+                  Customer<span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Business or Person"
+                  value={newCustomer.name}
+                  onChange={(e) =>
+                    setNewCustomer({ ...newCustomer, name: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label className="text-[14px] font-bold text-[#0f1f4b]">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) =>
+                    setNewCustomer({ ...newCustomer, email: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <label className="text-[14px] font-bold text-[#0f1f4b]">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={newCustomer.phone}
+                  onChange={(e) =>
+                    setNewCustomer({ ...newCustomer, phone: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Contact */}
+              <div className="space-y-1.5">
+                <label className="text-[14px] font-bold text-[#0f1f4b]">
+                  Contact
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="First name"
+                    value={newCustomer.firstName}
+                    onChange={(e) =>
+                      setNewCustomer({
+                        ...newCustomer,
+                        firstName: e.target.value,
+                      })
+                    }
+                    className="flex-1 rounded-xl border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Last name"
+                    value={newCustomer.lastName}
+                    onChange={(e) =>
+                      setNewCustomer({
+                        ...newCustomer,
+                        lastName: e.target.value,
+                      })
+                    }
+                    className="flex-1 rounded-xl border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-white px-6 py-4">
+              <button
+                onClick={() => setShowCreateCustomerModal(false)}
+                className="rounded-full border border-blue-600 px-7 py-2 text-[14px] font-bold text-blue-600 hover:bg-blue-50 transition-colors bg-white shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCustomer}
+                disabled={!newCustomer.name}
                 className="rounded-full bg-blue-600 px-9 py-2 text-[14px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
